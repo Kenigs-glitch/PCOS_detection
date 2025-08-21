@@ -242,6 +242,9 @@ class GraphDataProcessor:
         # Add positional information (optional)
         data.pos = torch.tensor(keypoints, dtype=torch.float) / 224.0
         
+        # Store original image path for visualization
+        data.image_path = image_path
+        
         return data
     
     def load_data(self):
@@ -1132,16 +1135,38 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
     
     # Left: Original ultrasound image representation
     if graph_pos is not None:
-        # Create a simple ultrasound-like visualization
+        # Try to load the actual ultrasound image
         img_size = 224
-        ultrasound_img = np.zeros((img_size, img_size, 3))
-        
-        # Add some ultrasound-like texture
-        for y in range(img_size):
-            for x in range(img_size):
-                # Create grainy ultrasound texture
-                noise = np.random.normal(0.3, 0.1)
-                ultrasound_img[y, x] = [noise, noise, noise]
+        if hasattr(data, 'image_path') and data.image_path:
+            try:
+                # Load the original image
+                original_img = cv2.imread(data.image_path, cv2.IMREAD_GRAYSCALE)
+                if original_img is not None:
+                    # Resize to match our processing
+                    original_img = cv2.resize(original_img, (img_size, img_size))
+                    # Convert to RGB for display
+                    ultrasound_img = cv2.cvtColor(original_img, cv2.COLOR_GRAY2RGB)
+                else:
+                    # Fallback to simulated image
+                    ultrasound_img = np.zeros((img_size, img_size, 3))
+                    for y in range(img_size):
+                        for x in range(img_size):
+                            noise = np.random.normal(0.3, 0.1)
+                            ultrasound_img[y, x] = [noise, noise, noise]
+            except:
+                # Fallback to simulated image
+                ultrasound_img = np.zeros((img_size, img_size, 3))
+                for y in range(img_size):
+                    for x in range(img_size):
+                        noise = np.random.normal(0.3, 0.1)
+                        ultrasound_img[y, x] = [noise, noise, noise]
+        else:
+            # Fallback to simulated image
+            ultrasound_img = np.zeros((img_size, img_size, 3))
+            for y in range(img_size):
+                for x in range(img_size):
+                    noise = np.random.normal(0.3, 0.1)
+                    ultrasound_img[y, x] = [noise, noise, noise]
         
         # Add keypoints as red circles with thin lines (highlighting features)
         for pos in graph_pos:
@@ -1219,25 +1244,41 @@ def create_summary_visualization(save_dir, data_loader=None):
     
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
     
-    # Step 1: Input - Use real ultrasound-like image if available
+        # Step 1: Input - Use real ultrasound image if available
     img_size = 200
     if data_loader is not None:
         # Try to get a real sample for visualization
         try:
             for data in data_loader:
                 if hasattr(data, 'pos') and data.pos is not None:
-                    # Create ultrasound-like image from real data
-                    ultrasound_img = np.zeros((img_size, img_size, 3))
-                    for y in range(img_size):
-                        for x in range(img_size):
-                            noise = np.random.normal(0.3, 0.1)
-                            ultrasound_img[y, x] = [noise, noise, noise]
+                    # Try to load the actual ultrasound image
+                    if hasattr(data, 'image_path') and data.image_path:
+                        original_img = cv2.imread(data.image_path, cv2.IMREAD_GRAYSCALE)
+                        if original_img is not None:
+                            # Resize to match our visualization size
+                            original_img = cv2.resize(original_img, (img_size, img_size))
+                            # Convert to RGB for display
+                            ultrasound_img = cv2.cvtColor(original_img, cv2.COLOR_GRAY2RGB)
+                        else:
+                            # Fallback to simulated image
+                            ultrasound_img = np.zeros((img_size, img_size, 3))
+                            for y in range(img_size):
+                                for x in range(img_size):
+                                    noise = np.random.normal(0.3, 0.1)
+                                    ultrasound_img[y, x] = [noise, noise, noise]
+                    else:
+                        # Fallback to simulated image
+                        ultrasound_img = np.zeros((img_size, img_size, 3))
+                        for y in range(img_size):
+                            for x in range(img_size):
+                                noise = np.random.normal(0.3, 0.1)
+                                ultrasound_img[y, x] = [noise, noise, noise]
                     
-                                         # Add real keypoints as red circles
-                     for pos in data.pos[:20]:  # Use first 20 points
-                         x, y = int(pos[0] * img_size), int(pos[1] * img_size)
-                         if 0 <= x < img_size and 0 <= y < img_size:
-                             cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
+                    # Add real keypoints as red circles
+                    for pos in data.pos[:20]:  # Use first 20 points
+                        x, y = int(pos[0] * img_size), int(pos[1] * img_size)
+                        if 0 <= x < img_size and 0 <= y < img_size:
+                            cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
                     break
                 else:
                     # Fallback to simulated image
