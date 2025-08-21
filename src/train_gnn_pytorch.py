@@ -22,6 +22,7 @@ import yaml
 from datetime import datetime
 import seaborn as sns
 from metrics import calculate_comprehensive_metrics, plot_comprehensive_metrics, generate_metrics_report
+from sklearn.metrics import confusion_matrix, classification_report
 
 warnings.filterwarnings('ignore')
 
@@ -711,7 +712,325 @@ class GNNTrainer:
         metrics_df.to_csv('/app/results/metrics/gnn_pytorch_final_metrics.csv', index=False)
         print("✅ Final metrics saved to /app/results/metrics/gnn_pytorch_final_metrics.csv")
         
+        # Generate Grad-CAM visualizations
+        self.generate_grad_cams(val_loader, num_samples=10)
+        
+        # Analyze failure cases
+        failure_report = self.analyze_failures(val_loader)
+        
+        # Generate comprehensive report
+        self.generate_comprehensive_report(test_metrics, failure_report)
+        
         return self.history, test_metrics
+    
+    def generate_grad_cams(self, data_loader, num_samples=10):
+        """Generate Grad-CAM visualizations for model interpretability"""
+        print("🔍 Generating Grad-CAM visualizations...")
+        
+        self.model.eval()
+        os.makedirs('/app/results/plots/grad_cams', exist_ok=True)
+        
+        sample_count = 0
+        for data in data_loader:
+            if sample_count >= num_samples:
+                break
+                
+            data = data.to(device)
+            
+            # Get predictions
+            with torch.no_grad():
+                output = self.model(data)
+                predictions = F.softmax(output, dim=1)
+                pred_labels = output.argmax(dim=1)
+                true_labels = data.y.view(-1)
+            
+            # Process each graph in the batch
+            for i in range(data.num_graphs):
+                if sample_count >= num_samples:
+                    break
+                
+                # Get the graph data for this sample
+                graph_idx = (data.batch == i).nonzero(as_tuple=True)[0]
+                graph_x = data.x[graph_idx]
+                graph_edge_index = data.edge_index[:, (data.batch[data.edge_index[0]] == i) & (data.batch[data.edge_index[1]] == i)]
+                graph_pos = data.pos[graph_idx] if hasattr(data, 'pos') else None
+                
+                # Create a single graph for Grad-CAM
+                single_graph = Data(
+                    x=graph_x,
+                    edge_index=graph_edge_index,
+                    edge_attr=data.edge_attr[(data.batch[data.edge_index[0]] == i) & (data.batch[data.edge_index[1]] == i)] if data.edge_attr is not None else None,
+                    pos=graph_pos
+                )
+                
+                # Generate Grad-CAM for this graph
+                self._generate_single_grad_cam(single_graph, pred_labels[i], true_labels[i], predictions[i], sample_count)
+                sample_count += 1
+        
+        print(f"✅ Generated {sample_count} Grad-CAM visualizations")
+    
+    def _generate_single_grad_cam(self, graph, pred_label, true_label, prediction_probs, sample_idx):
+        """Generate Grad-CAM for a single graph"""
+        # For GNNs, we'll create a heatmap based on node importance
+        graph = graph.to(device)
+        graph.requires_grad_(True)
+        
+        # Forward pass
+        output = self.model(graph)
+        
+        # Get gradients with respect to node features
+        output[0, pred_label].backward()
+        
+        # Get gradients of the last layer with respect to node features
+        gradients = graph.x.grad
+        
+        # Calculate node importance (similar to Grad-CAM)
+        if gradients is not None:
+            # Average gradients across feature dimensions
+            node_importance = torch.mean(torch.abs(gradients), dim=1)
+            
+            # Normalize importance scores
+            node_importance = (node_importance - node_importance.min()) / (node_importance.max() - node_importance.min() + 1e-8)
+            
+            # Create a 224x224 heatmap
+            heatmap = np.zeros((224, 224))
+            
+            if hasattr(graph, 'pos') and graph.pos is not None:
+                # Use actual node positions
+                pos = graph.pos.cpu().numpy()
+                for j, (x, y) in enumerate(pos):
+                    x_coord = int(x * 224)
+                    y_coord = int(y * 224)
+                    if 0 <= x_coord < 224 and 0 <= y_coord < 224:
+                        heatmap[y_coord, x_coord] = node_importance[j].item()
+            else:
+                # Use node indices as positions (fallback)
+                for j in range(len(node_importance)):
+                    x_coord = int((j % 224) * 224 / len(node_importance))
+                    y_coord = int((j // 224) * 224 / len(node_importance))
+                    if 0 <= x_coord < 224 and 0 <= y_coord < 224:
+                        heatmap[y_coord, x_coord] = node_importance[j].item()
+            
+            # Apply Gaussian blur for smoother visualization
+            heatmap = cv2.GaussianBlur(heatmap, (15, 15), 0)
+            
+            # Create visualization
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+            
+            # Original graph visualization
+            ax1.scatter(graph.pos[:, 0].cpu().numpy() * 224, graph.pos[:, 1].cpu().numpy() * 224, 
+                       c=node_importance.cpu().numpy(), cmap='hot', s=50, alpha=0.7)
+            ax1.set_title(f'Graph Nodes with Importance\nPred: {pred_label.item()}, True: {true_label.item()}')
+            ax1.set_xlim(0, 224)
+            ax1.set_ylim(0, 224)
+            ax1.invert_yaxis()
+            
+            # Heatmap visualization
+            im = ax2.imshow(heatmap, cmap='hot', alpha=0.8)
+            ax2.set_title(f'Grad-CAM Heatmap\nConfidence: {prediction_probs[pred_label].item():.3f}')
+            ax2.axis('off')
+            
+            # Add colorbar
+            plt.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
+            
+            # Save the visualization
+            status = "correct" if pred_label == true_label else "incorrect"
+            plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}.png', 
+                       dpi=300, bbox_inches='tight')
+            plt.close()
+    
+    def analyze_failures(self, data_loader):
+        """Analyze failure cases and generate detailed failure report"""
+        print("🔍 Analyzing failure cases...")
+        
+        self.model.eval()
+        failures = []
+        all_predictions = []
+        all_targets = []
+        all_probabilities = []
+        
+        with torch.no_grad():
+            for data in data_loader:
+                data = data.to(device)
+                output = self.model(data)
+                predictions = F.softmax(output, dim=1)
+                pred_labels = output.argmax(dim=1)
+                true_labels = data.y.view(-1)
+                
+                # Collect all predictions and targets
+                all_predictions.extend(pred_labels.cpu().numpy())
+                all_targets.extend(true_labels.cpu().numpy())
+                all_probabilities.extend(predictions[:, 1].cpu().numpy())  # PCOS probability
+                
+                # Identify failures
+                for i in range(data.num_graphs):
+                    if pred_labels[i] != true_labels[i]:
+                        failures.append({
+                            'prediction': pred_labels[i].item(),
+                            'true_label': true_labels[i].item(),
+                            'confidence': predictions[i, pred_labels[i]].item(),
+                            'pcos_probability': predictions[i, 1].item(),
+                            'graph_size': (data.batch == i).sum().item()
+                        })
+        
+        # Calculate failure statistics
+        total_samples = len(all_targets)
+        failure_count = len(failures)
+        failure_rate = failure_count / total_samples
+        
+        print(f"📊 Failure Analysis:")
+        print(f"   Total samples: {total_samples}")
+        print(f"   Failures: {failure_count}")
+        print(f"   Failure rate: {failure_rate:.4f} ({failure_rate*100:.2f}%)")
+        
+        # Analyze failure patterns
+        if failures:
+            false_positives = sum(1 for f in failures if f['prediction'] == 1 and f['true_label'] == 0)
+            false_negatives = sum(1 for f in failures if f['prediction'] == 0 and f['true_label'] == 1)
+            
+            print(f"   False Positives: {false_positives} ({false_positives/failure_count*100:.1f}% of failures)")
+            print(f"   False Negatives: {false_negatives} ({false_negatives/failure_count*100:.1f}% of failures)")
+            
+            # Confidence analysis
+            confidences = [f['confidence'] for f in failures]
+            avg_confidence = np.mean(confidences)
+            print(f"   Average confidence of failures: {avg_confidence:.4f}")
+            
+            # Graph size analysis
+            graph_sizes = [f['graph_size'] for f in failures]
+            avg_graph_size = np.mean(graph_sizes)
+            print(f"   Average graph size of failures: {avg_graph_size:.1f} nodes")
+        
+        # Generate comprehensive confusion matrix
+        cm = confusion_matrix(all_targets, all_predictions)
+        
+        # Create detailed confusion matrix visualization
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                   xticklabels=['Normal', 'PCOS'], 
+                   yticklabels=['Normal', 'PCOS'])
+        plt.title('GNN PyTorch Confusion Matrix with Failure Analysis')
+        plt.ylabel('True Label')
+        plt.xlabel('Predicted Label')
+        
+        # Add failure rate information
+        plt.text(0.5, -0.15, f'Failure Rate: {failure_rate*100:.2f}%', 
+                ha='center', va='center', transform=plt.gca().transAxes, 
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+        
+        plt.tight_layout()
+        plt.savefig('/app/results/plots/gnn_pytorch_confusion_matrix_detailed.png', 
+                   dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        # Save failure analysis report
+        failure_report = {
+            'total_samples': total_samples,
+            'failure_count': failure_count,
+            'failure_rate': failure_rate,
+            'false_positives': false_positives if failures else 0,
+            'false_negatives': false_negatives if failures else 0,
+            'avg_confidence_failures': avg_confidence if failures else 0,
+            'avg_graph_size_failures': avg_graph_size if failures else 0,
+            'confusion_matrix': cm.tolist()
+        }
+        
+        # Save as JSON
+        import json
+        with open('/app/results/metrics/gnn_pytorch_failure_analysis.json', 'w') as f:
+            json.dump(failure_report, f, indent=2)
+        
+        # Save detailed failure cases
+        if failures:
+            failure_df = pd.DataFrame(failures)
+            failure_df.to_csv('/app/results/metrics/gnn_pytorch_failure_cases.csv', index=False)
+            print(f"✅ Detailed failure cases saved to CSV")
+        
+        print("✅ Failure analysis completed and saved")
+        
+        return failure_report
+    
+    def generate_comprehensive_report(self, test_metrics, failure_report):
+        """Generate a comprehensive evaluation report"""
+        print("📋 Generating comprehensive evaluation report...")
+        
+        # Create comprehensive metrics report
+        comprehensive_metrics = {
+            'model_type': 'PyTorch Geometric GNN',
+            'training_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'performance_metrics': {
+                'accuracy': test_metrics['accuracy'],
+                'f1_score': test_metrics['f1_score'],
+                'kappa': test_metrics['kappa'],
+                'auc_roc': test_metrics['auc']
+            },
+            'failure_analysis': failure_report,
+            'model_architecture': {
+                'node_features': 5,  # intensity, dx, dy, x, y
+                'edge_features': 2,  # distance, intensity_diff
+                'hidden_channels': 64,
+                'gnn_layers': ['GCNConv', 'GATConv', 'GraphConv'],
+                'pooling': ['Mean', 'Max'],
+                'classification_layers': [64, 32, 2]
+            }
+        }
+        
+        # Save comprehensive report
+        import json
+        with open('/app/results/metrics/gnn_pytorch_comprehensive_report.json', 'w') as f:
+            json.dump(comprehensive_metrics, f, indent=2)
+        
+        # Generate markdown report
+        report_md = f"""# PyTorch Geometric GNN PCOS Detection Report
+
+## Model Overview
+- **Model Type**: PyTorch Geometric Graph Neural Network
+- **Training Date**: {comprehensive_metrics['training_date']}
+- **Architecture**: Multi-layer GNN with attention mechanisms
+
+## Performance Metrics
+- **Accuracy**: {test_metrics['accuracy']:.4f}
+- **F1 Score**: {test_metrics['f1_score']:.4f}
+- **Cohen's Kappa**: {test_metrics['kappa']:.4f}
+- **AUC-ROC**: {test_metrics['auc']:.4f}
+
+## Failure Analysis
+- **Total Samples**: {failure_report['total_samples']}
+- **Failures**: {failure_report['failure_count']}
+- **Failure Rate**: {failure_report['failure_rate']*100:.2f}%
+- **False Positives**: {failure_report['false_positives']}
+- **False Negatives**: {failure_report['false_negatives']}
+- **Avg Confidence of Failures**: {failure_report['avg_confidence_failures']:.4f}
+- **Avg Graph Size of Failures**: {failure_report['avg_graph_size_failures']:.1f} nodes
+
+## Model Architecture
+- **Node Features**: {comprehensive_metrics['model_architecture']['node_features']} (intensity, gradients, position)
+- **Edge Features**: {comprehensive_metrics['model_architecture']['edge_features']} (distance, intensity difference)
+- **Hidden Channels**: {comprehensive_metrics['model_architecture']['hidden_channels']}
+- **GNN Layers**: {', '.join(comprehensive_metrics['model_architecture']['gnn_layers'])}
+- **Pooling**: {', '.join(comprehensive_metrics['model_architecture']['pooling'])}
+- **Classification Layers**: {comprehensive_metrics['model_architecture']['classification_layers']}
+
+## Generated Files
+- Training curves: `/app/results/plots/gnn_pytorch_training_curves.png`
+- ROC curve: `/app/results/plots/gnn_pytorch_roc_curve.png`
+- Confusion matrix: `/app/results/plots/gnn_pytorch_confusion_matrix_detailed.png`
+- Grad-CAM visualizations: `/app/results/plots/grad_cams/`
+- Failure analysis: `/app/results/metrics/gnn_pytorch_failure_analysis.json`
+- Detailed failure cases: `/app/results/metrics/gnn_pytorch_failure_cases.csv`
+
+## Key Insights
+1. **Graph-based approach** captures spatial relationships in ultrasound images
+2. **Edge detection and triangulation** create meaningful graph structures
+3. **Attention mechanisms** focus on important image regions
+4. **Multi-scale pooling** combines local and global information
+"""
+        
+        with open('/app/results/metrics/gnn_pytorch_report.md', 'w') as f:
+            f.write(report_md)
+        
+        print("✅ Comprehensive report generated")
+        print("📄 Report saved to: /app/results/metrics/gnn_pytorch_report.md")
 
 def main():
     """Main execution function"""
