@@ -173,6 +173,10 @@ class EfficientNetTrainer:
             Dense(2, activation='softmax', name='predictions')
         ])
         
+        # Build model with sample input
+        sample_input = tf.keras.Input(shape=(300, 300, 3))
+        model.build(sample_input.shape)
+        
         # Compile model
         model.compile(
             optimizer=tf.keras.optimizers.Adam(
