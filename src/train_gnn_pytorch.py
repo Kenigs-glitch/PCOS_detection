@@ -1141,19 +1141,28 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
     if graph_pos is not None:
         # Try to load the actual ultrasound image
         img_size = 224
+        
+        # Get the image path for this specific graph in the batch
         if hasattr(data, 'image_path') and data.image_path:
-            print(f"🔍 Trying to load image: {data.image_path}")
+            # Handle batch case - image_path is a list, get the specific one for this graph
+            if isinstance(data.image_path, list):
+                # Get the image path for this specific graph index
+                image_path = data.image_path[graph_idx] if graph_idx < len(data.image_path) else data.image_path[0]
+            else:
+                image_path = data.image_path
+            
+            print(f"🔍 Trying to load image: {image_path}")
             try:
                 # Load the original image
-                original_img = cv2.imread(data.image_path, cv2.IMREAD_GRAYSCALE)
+                original_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
                 if original_img is not None:
-                    print(f"✅ Successfully loaded image: {data.image_path}")
+                    print(f"✅ Successfully loaded image: {image_path}")
                     # Resize to match our processing
                     original_img = cv2.resize(original_img, (img_size, img_size))
                     # Convert to RGB for display
                     ultrasound_img = cv2.cvtColor(original_img, cv2.COLOR_GRAY2RGB)
                 else:
-                    print(f"❌ Failed to load image: {data.image_path}")
+                    print(f"❌ Failed to load image: {image_path}")
                     # Fallback to simulated image
                     ultrasound_img = np.zeros((img_size, img_size, 3))
                     for y in range(img_size):
@@ -1161,7 +1170,7 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
                             noise = np.random.normal(0.3, 0.1)
                             ultrasound_img[y, x] = [noise, noise, noise]
             except Exception as e:
-                print(f"❌ Exception loading image {data.image_path}: {e}")
+                print(f"❌ Exception loading image {image_path}: {e}")
                 # Fallback to simulated image
                 ultrasound_img = np.zeros((img_size, img_size, 3))
                 for y in range(img_size):
@@ -1262,7 +1271,13 @@ def create_summary_visualization(save_dir, data_loader=None):
                 if hasattr(data, 'pos') and data.pos is not None:
                     # Try to load the actual ultrasound image
                     if hasattr(data, 'image_path') and data.image_path:
-                        original_img = cv2.imread(data.image_path, cv2.IMREAD_GRAYSCALE)
+                        # Handle batch case - image_path is a list, get the first one
+                        if isinstance(data.image_path, list):
+                            image_path = data.image_path[0]
+                        else:
+                            image_path = data.image_path
+                        
+                        original_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
                         if original_img is not None:
                             # Resize to match our visualization size
                             original_img = cv2.resize(original_img, (img_size, img_size))
