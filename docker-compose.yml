@@ -17,7 +17,7 @@ services:
       - "8888:8888"  # Jupyter
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:/usr/lib/x86_64-linux-gnu
       - CUDA_HOME=/usr/local/cuda
     deploy:
       resources:
