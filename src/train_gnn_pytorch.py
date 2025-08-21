@@ -1199,7 +1199,9 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
             print(f"🔍 Coordinate mapping verification:")
             for i in range(min(3, len(graph_pos), len(data.original_keypoints))):
                 orig_x, orig_y = data.original_keypoints[i]
-                norm_x, norm_y = graph_pos[i][0].item(), graph_pos[i][1].item()
+                # graph_pos[i] is a tensor, need to access individual elements
+                norm_x = graph_pos[i][0].item()
+                norm_y = graph_pos[i][1].item()
                 mapped_x = int(norm_x * img_size)
                 mapped_y = int(norm_y * img_size)
                 print(f"   Point {i}: original=({orig_x}, {orig_y}) -> normalized=({norm_x:.3f}, {norm_y:.3f}) -> mapped=({mapped_x}, {mapped_y})")
