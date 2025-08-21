@@ -14,6 +14,19 @@ from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
 from tensorflow.keras.callbacks import Callback
 import pandas as pd
 
+# Configure GPU memory growth
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        print(f"✅ GPU devices found: {len(gpus)}")
+        print(f"GPU devices: {[gpu.name for gpu in gpus]}")
+    except RuntimeError as e:
+        print(f"GPU configuration error: {e}")
+else:
+    print("⚠️ No GPU devices found, using CPU")
+
 class MetricsMonitor(Callback):
     """Custom callback for real-time metrics monitoring"""
     def __init__(self, log_dir='/app/results/metrics'):
@@ -172,10 +185,16 @@ class EfficientNetTrainer:
             tf.keras.layers.RandomContrast(0.1),
         ])
         
+        # Custom preprocessing for EfficientNet
+        preprocessing = tf.keras.Sequential([
+            tf.keras.layers.Rescaling(1./255),  # Normalize to [0,1]
+            tf.keras.layers.Lambda(lambda x: tf.keras.applications.efficientnet.preprocess_input(x))  # EfficientNet preprocessing
+        ])
+        
         # Custom classification head
         model = tf.keras.Sequential([
             data_augmentation,
-            tf.keras.layers.Rescaling(1./255),  # Normalize pixel values
+            preprocessing,
             base_model,
             GlobalAveragePooling2D(),
             Dropout(0.3),
