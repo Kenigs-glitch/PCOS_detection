@@ -870,8 +870,8 @@ class GNNTrainer:
             ax.axis('off')
             
             status = "correct" if pred_label == true_label else "incorrect"
-                            plt.savefig(f'{RESULT_DIR}/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}_failed.png', 
-                       dpi=300, bbox_inches='tight')
+            plt.savefig(f'{RESULT_DIR}/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}_failed.png', 
+                        dpi=300, bbox_inches='tight')
             plt.close()
     
     def analyze_failures(self, data_loader):
