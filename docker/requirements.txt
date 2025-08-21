@@ -24,6 +24,11 @@ pyyaml==6.0.2
 
 # Graph Neural Network Dependencies
 networkx==3.2.1
+torch-geometric==2.4.0
+torch-scatter==2.1.2
+torch-sparse==0.6.18
+torch-cluster==1.6.3
+scikit-image==0.22.0
 
 # Additional Dependencies (auto-installed with tensorflow[and-cuda])
 # tensorboard==2.20.0
