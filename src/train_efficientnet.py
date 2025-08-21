@@ -152,9 +152,9 @@ class EfficientNetTrainer:
         """Create EfficientNet-B3 model with custom head"""
         print("🏗️ Creating EfficientNet-B3 model...")
         
-        # Base model
+        # Base model - try without weights first
         base_model = EfficientNetB3(
-            weights='imagenet',
+            weights=None,
             include_top=False,
             input_shape=(300, 300, 3)
         )
@@ -192,7 +192,7 @@ class EfficientNetTrainer:
         
         # Load dataset
         dataset = tf.keras.preprocessing.image_dataset_from_directory(
-            '/app/data/raw/train',
+            '/app/data/raw/data/train',
             labels='inferred',
             label_mode='categorical',
             image_size=(300, 300),
