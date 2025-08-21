@@ -37,6 +37,9 @@ if torch.cuda.is_available():
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
+# Set result directory
+RESULT_DIR = '/app/result'
+
 # Configure GPU memory growth for TensorFlow compatibility
 import tensorflow as tf
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -370,7 +373,7 @@ class PCOSGraphNN(torch.nn.Module):
 class MetricsMonitor:
     """Monitor training metrics and save to files"""
     
-    def __init__(self, log_dir='/app/results/metrics'):
+    def __init__(self, log_dir=f'{RESULT_DIR}/metrics'):
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
         self.metrics_file = os.path.join(log_dir, 'gnn_pytorch_metrics.csv')
@@ -591,7 +594,7 @@ class GNNTrainer:
     
     def generate_visualizations(self, history, test_metrics):
         """Generate training visualizations"""
-        os.makedirs('/app/results/plots', exist_ok=True)
+        os.makedirs(f'{RESULT_DIR}/plots', exist_ok=True)
         
         # Plot training curves
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
@@ -632,7 +635,7 @@ class GNNTrainer:
         axes[1, 1].grid(True)
         
         plt.tight_layout()
-        plt.savefig('/app/results/plots/gnn_pytorch_training_curves.png', dpi=300, bbox_inches='tight')
+        plt.savefig(f'{RESULT_DIR}/plots/gnn_pytorch_training_curves.png', dpi=300, bbox_inches='tight')
         plt.close()
         
         # Plot ROC curve
@@ -646,7 +649,7 @@ class GNNTrainer:
         plt.title('PCOS Detection ROC Curve (Validation Set)')
         plt.legend()
         plt.grid(True)
-        plt.savefig('/app/results/plots/gnn_pytorch_roc_curve.png', dpi=300, bbox_inches='tight')
+        plt.savefig(f'{RESULT_DIR}/plots/gnn_pytorch_roc_curve.png', dpi=300, bbox_inches='tight')
         plt.close()
         
         # Plot confusion matrix
@@ -656,7 +659,7 @@ class GNNTrainer:
         plt.title('GNN PyTorch Confusion Matrix')
         plt.ylabel('True Label')
         plt.xlabel('Predicted Label')
-        plt.savefig('/app/results/plots/gnn_pytorch_confusion_matrix.png', dpi=300, bbox_inches='tight')
+        plt.savefig(f'{RESULT_DIR}/plots/gnn_pytorch_confusion_matrix.png', dpi=300, bbox_inches='tight')
         plt.close()
         
         print("✅ GNN PyTorch visualizations saved")
@@ -712,8 +715,8 @@ class GNNTrainer:
             'Validation': [test_metrics['accuracy'], test_metrics['f1_score'], test_metrics['kappa'], test_metrics['auc']]
         })
         
-        metrics_df.to_csv('/app/results/metrics/gnn_pytorch_final_metrics.csv', index=False)
-        print("✅ Final metrics saved to /app/results/metrics/gnn_pytorch_final_metrics.csv")
+        metrics_df.to_csv(f'{RESULT_DIR}/metrics/gnn_pytorch_final_metrics.csv', index=False)
+        print(f"✅ Final metrics saved to {RESULT_DIR}/metrics/gnn_pytorch_final_metrics.csv")
         
         # Generate Grad-CAM visualizations
         self.generate_grad_cams(val_loader, num_samples=10)
@@ -731,7 +734,7 @@ class GNNTrainer:
         print("🔍 Generating Grad-CAM visualizations...")
         
         self.model.eval()
-        os.makedirs('/app/results/plots/grad_cams', exist_ok=True)
+        os.makedirs(f'{RESULT_DIR}/plots/grad_cams', exist_ok=True)
         
         sample_count = 0
         for data in data_loader:
@@ -853,7 +856,7 @@ class GNNTrainer:
                 
                 # Save the visualization
                 status = "correct" if pred_label == true_label else "incorrect"
-                plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}.png', 
+                plt.savefig(f'{RESULT_DIR}/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}.png', 
                            dpi=300, bbox_inches='tight')
                 plt.close()
                 
@@ -867,7 +870,7 @@ class GNNTrainer:
             ax.axis('off')
             
             status = "correct" if pred_label == true_label else "incorrect"
-            plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}_failed.png', 
+                            plt.savefig(f'{RESULT_DIR}/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}_failed.png', 
                        dpi=300, bbox_inches='tight')
             plt.close()
     
@@ -951,7 +954,7 @@ class GNNTrainer:
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
         
         plt.tight_layout()
-        plt.savefig('/app/results/plots/gnn_pytorch_confusion_matrix_detailed.png', 
+        plt.savefig(f'{RESULT_DIR}/plots/gnn_pytorch_confusion_matrix_detailed.png', 
                    dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -969,13 +972,13 @@ class GNNTrainer:
         
         # Save as JSON
         import json
-        with open('/app/results/metrics/gnn_pytorch_failure_analysis.json', 'w') as f:
+        with open(f'{RESULT_DIR}/metrics/gnn_pytorch_failure_analysis.json', 'w') as f:
             json.dump(failure_report, f, indent=2)
         
         # Save detailed failure cases
         if failures:
             failure_df = pd.DataFrame(failures)
-            failure_df.to_csv('/app/results/metrics/gnn_pytorch_failure_cases.csv', index=False)
+            failure_df.to_csv(f'{RESULT_DIR}/metrics/gnn_pytorch_failure_cases.csv', index=False)
             print(f"✅ Detailed failure cases saved to CSV")
         
         print("✅ Failure analysis completed and saved")
@@ -1009,7 +1012,7 @@ class GNNTrainer:
         
         # Save comprehensive report
         import json
-        with open('/app/results/metrics/gnn_pytorch_comprehensive_report.json', 'w') as f:
+        with open(f'{RESULT_DIR}/metrics/gnn_pytorch_comprehensive_report.json', 'w') as f:
             json.dump(comprehensive_metrics, f, indent=2)
         
         # Generate markdown report
@@ -1044,12 +1047,12 @@ class GNNTrainer:
 - **Classification Layers**: {comprehensive_metrics['model_architecture']['classification_layers']}
 
 ## Generated Files
-- Training curves: `/app/results/plots/gnn_pytorch_training_curves.png`
-- ROC curve: `/app/results/plots/gnn_pytorch_roc_curve.png`
-- Confusion matrix: `/app/results/plots/gnn_pytorch_confusion_matrix_detailed.png`
-- Grad-CAM visualizations: `/app/results/plots/grad_cams/`
-- Failure analysis: `/app/results/metrics/gnn_pytorch_failure_analysis.json`
-- Detailed failure cases: `/app/results/metrics/gnn_pytorch_failure_cases.csv`
+- Training curves: `{RESULT_DIR}/plots/gnn_pytorch_training_curves.png`
+- ROC curve: `{RESULT_DIR}/plots/gnn_pytorch_roc_curve.png`
+- Confusion matrix: `{RESULT_DIR}/plots/gnn_pytorch_confusion_matrix_detailed.png`
+- Grad-CAM visualizations: `{RESULT_DIR}/plots/grad_cams/`
+- Failure analysis: `{RESULT_DIR}/metrics/gnn_pytorch_failure_analysis.json`
+- Detailed failure cases: `{RESULT_DIR}/metrics/gnn_pytorch_failure_cases.csv`
 
 ## Key Insights
 1. **Graph-based approach** captures spatial relationships in ultrasound images
@@ -1058,13 +1061,13 @@ class GNNTrainer:
 4. **Multi-scale pooling** combines local and global information
 """
         
-        with open('/app/results/metrics/gnn_pytorch_report.md', 'w') as f:
+        with open(f'{RESULT_DIR}/metrics/gnn_pytorch_report.md', 'w') as f:
             f.write(report_md)
         
         print("✅ Comprehensive report generated")
-        print("📄 Report saved to: /app/results/metrics/gnn_pytorch_report.md")
+        print(f"📄 Report saved to: {RESULT_DIR}/metrics/gnn_pytorch_report.md")
 
-def create_simple_detection_visualizations(model, data_loader, save_dir='/app/results/plots/simple_detection'):
+def create_simple_detection_visualizations(model, data_loader, save_dir=f'{RESULT_DIR}/plots/simple_detection'):
     """Create simple, non-technical visualizations showing how the model detects PCOS"""
     
     # Ensure we don't create recursive folders
@@ -1485,11 +1488,11 @@ def main():
         print(f"⚠️  Simple visualizations failed: {e}")
         print("   (This doesn't affect the main training results)")
     
-    print("\n📁 Results saved in:")
-    print("   - /app/results/plots/")
-    print("   - /app/results/metrics/")
+    print(f"\n📁 Results saved in:")
+    print(f"   - {RESULT_DIR}/plots/")
+    print(f"   - {RESULT_DIR}/metrics/")
     print("   - /app/models/gnn_pytorch/")
-    print("   - /app/results/plots/simple_detection/ (client-ready visualizations)")
+    print(f"   - {RESULT_DIR}/plots/simple_detection/ (client-ready visualizations)")
 
 if __name__ == "__main__":
     main() 

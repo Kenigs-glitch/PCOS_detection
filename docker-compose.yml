@@ -9,7 +9,7 @@ services:
       - ./notebooks:/app/notebooks
       - ./data:/app/data
       - ./models:/app/models
-      - ./results:/app/results
+      - ./result:/app/result
       - ./scripts:/app/scripts
       - ./config.yaml:/app/config.yaml
       - ./kaggle.json:/root/.kaggle/kaggle.json
