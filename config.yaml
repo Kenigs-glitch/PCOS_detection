@@ -1,0 +1,21 @@
+# Simple configuration
+data:
+  source: "anaghachoudhari/pcos-detection-using-ultrasound-images"
+  image_size: [300, 300]
+  batch_size: 32
+  validation_split: 0.2
+
+models:
+  efficientnet_b3:
+    name: "EfficientNetB3"
+    epochs: 50
+    learning_rate: 0.001
+    
+  resnet50:
+    name: "ResNet50"  
+    epochs: 50
+    learning_rate: 0.001
+
+training:
+  patience: 10
+  save_best_only: true 

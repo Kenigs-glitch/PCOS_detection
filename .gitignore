@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/raw/*
+data/processed/*
+models/*/best_model.h5
+models/*/final_model.h5
+results/plots/*
+results/metrics/*
+results/comparison_report.md
+
+# Keep directories but ignore contents
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!models/efficientnet_b3/.gitkeep
+!models/resnet50/.gitkeep
+!results/plots/.gitkeep
+!results/metrics/.gitkeep 
