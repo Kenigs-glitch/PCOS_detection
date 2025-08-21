@@ -244,6 +244,7 @@ class GraphDataProcessor:
         
         # Store original image path for visualization
         data.image_path = image_path
+        print(f"📸 Stored image path: {image_path}")
         
         return data
     
@@ -1067,7 +1068,10 @@ class GNNTrainer:
 def create_simple_detection_visualizations(model, data_loader, save_dir='/app/results/plots/simple_detection'):
     """Create simple, non-technical visualizations showing how the model detects PCOS"""
     
+    # Ensure we don't create recursive folders
+    save_dir = save_dir.rstrip('/')
     os.makedirs(save_dir, exist_ok=True)
+    print(f"📁 Creating visualizations in: {save_dir}")
     
     print("🔍 Creating simple detection visualizations for non-technical audience...")
     
@@ -1138,22 +1142,26 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
         # Try to load the actual ultrasound image
         img_size = 224
         if hasattr(data, 'image_path') and data.image_path:
+            print(f"🔍 Trying to load image: {data.image_path}")
             try:
                 # Load the original image
                 original_img = cv2.imread(data.image_path, cv2.IMREAD_GRAYSCALE)
                 if original_img is not None:
+                    print(f"✅ Successfully loaded image: {data.image_path}")
                     # Resize to match our processing
                     original_img = cv2.resize(original_img, (img_size, img_size))
                     # Convert to RGB for display
                     ultrasound_img = cv2.cvtColor(original_img, cv2.COLOR_GRAY2RGB)
                 else:
+                    print(f"❌ Failed to load image: {data.image_path}")
                     # Fallback to simulated image
                     ultrasound_img = np.zeros((img_size, img_size, 3))
                     for y in range(img_size):
                         for x in range(img_size):
                             noise = np.random.normal(0.3, 0.1)
                             ultrasound_img[y, x] = [noise, noise, noise]
-            except:
+            except Exception as e:
+                print(f"❌ Exception loading image {data.image_path}: {e}")
                 # Fallback to simulated image
                 ultrasound_img = np.zeros((img_size, img_size, 3))
                 for y in range(img_size):
@@ -1161,6 +1169,7 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
                         noise = np.random.normal(0.3, 0.1)
                         ultrasound_img[y, x] = [noise, noise, noise]
         else:
+            print(f"❌ No image_path found in data")
             # Fallback to simulated image
             ultrasound_img = np.zeros((img_size, img_size, 3))
             for y in range(img_size):
