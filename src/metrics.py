@@ -38,56 +38,28 @@ class PCOSMetrics(Callback):
         self.y_pred_proba = []
     
     def on_epoch_end(self, epoch, logs=None):
-        # Store basic metrics
+        # Store basic metrics that are available from Keras
         for metric, value in logs.items():
             if metric in self.metrics_history:
                 self.metrics_history[metric].append(value)
         
-        # Calculate additional metrics if we have predictions
-        if len(self.y_true) > 0 and len(self.y_pred) > 0:
-            y_true = np.array(self.y_true)
-            y_pred = np.array(self.y_pred)
-            y_pred_proba = np.array(self.y_pred_proba)
-            
-            # Calculate comprehensive metrics
-            precision = precision_score(y_true, y_pred, average='weighted', zero_division=0)
-            recall = recall_score(y_true, y_pred, average='weighted', zero_division=0)
-            f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
-            
-            # AUC score (for binary classification)
-            if len(np.unique(y_true)) == 2:
-                auc_score = roc_auc_score(y_true, y_pred_proba[:, 1])
-            else:
-                auc_score = 0.0
-            
-            # Specificity and Sensitivity (for binary classification)
-            if len(np.unique(y_true)) == 2:
-                tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-                specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
-                sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
-            else:
-                specificity = 0.0
-                sensitivity = 0.0
-            
-            # Store calculated metrics
-            self.metrics_history['precision'].append(precision)
-            self.metrics_history['recall'].append(recall)
-            self.metrics_history['f1_score'].append(f1)
-            self.metrics_history['auc_score'].append(auc_score)
-            self.metrics_history['specificity'].append(specificity)
-            self.metrics_history['sensitivity'].append(sensitivity)
-        
         # Calculate training time
         elapsed_time = time.time() - self.start_time
         
-        # Print comprehensive progress
+        # Print progress with available metrics
         print(f"\n📊 Epoch {epoch + 1} Metrics:")
         print(f"   Training - Loss: {logs['loss']:.4f}, Accuracy: {logs['accuracy']:.4f}")
-        if 'precision' in self.metrics_history and len(self.metrics_history['precision']) > 0:
-            print(f"   Training - Precision: {self.metrics_history['precision'][-1]:.4f}, Recall: {self.metrics_history['recall'][-1]:.4f}, F1: {self.metrics_history['f1_score'][-1]:.4f}")
+        
+        # Print additional metrics if available from Keras
+        if 'precision' in logs:
+            print(f"   Training - Precision: {logs['precision']:.4f}, Recall: {logs['recall']:.4f}")
+        
         print(f"   Validation - Loss: {logs['val_loss']:.4f}, Accuracy: {logs['val_accuracy']:.4f}")
-        if 'val_precision' in self.metrics_history and len(self.metrics_history['val_precision']) > 0:
-            print(f"   Validation - Precision: {self.metrics_history['val_precision'][-1]:.4f}, Recall: {self.metrics_history['val_recall'][-1]:.4f}, F1: {self.metrics_history['val_f1_score'][-1]:.4f}")
+        
+        # Print additional validation metrics if available
+        if 'val_precision' in logs:
+            print(f"   Validation - Precision: {logs['val_precision']:.4f}, Recall: {logs['val_recall']:.4f}")
+        
         print(f"   Time elapsed: {elapsed_time/60:.1f} minutes")
         
         # Save metrics to file
@@ -98,8 +70,8 @@ class PCOSMetrics(Callback):
         self.plot_metrics()
     
     def plot_metrics(self):
-        """Create comprehensive real-time metrics visualization"""
-        fig, axes = plt.subplots(3, 2, figsize=(15, 15))
+        """Create real-time metrics visualization"""
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
         
         # Loss plot
         if len(self.metrics_history['loss']) > 0:
@@ -121,7 +93,7 @@ class PCOSMetrics(Callback):
             axes[0, 1].legend()
             axes[0, 1].grid(True)
         
-        # Precision plot
+        # Precision plot (if available)
         if len(self.metrics_history['precision']) > 0:
             axes[1, 0].plot(self.metrics_history['precision'], label='Training Precision', color='blue')
             axes[1, 0].plot(self.metrics_history['val_precision'], label='Validation Precision', color='red')
@@ -130,8 +102,12 @@ class PCOSMetrics(Callback):
             axes[1, 0].set_ylabel('Precision')
             axes[1, 0].legend()
             axes[1, 0].grid(True)
+        else:
+            axes[1, 0].text(0.5, 0.5, 'Precision metrics\nnot available\nduring training', 
+                           ha='center', va='center', transform=axes[1, 0].transAxes)
+            axes[1, 0].set_title('Model Precision')
         
-        # Recall plot
+        # Recall plot (if available)
         if len(self.metrics_history['recall']) > 0:
             axes[1, 1].plot(self.metrics_history['recall'], label='Training Recall', color='blue')
             axes[1, 1].plot(self.metrics_history['val_recall'], label='Validation Recall', color='red')
@@ -140,26 +116,10 @@ class PCOSMetrics(Callback):
             axes[1, 1].set_ylabel('Recall')
             axes[1, 1].legend()
             axes[1, 1].grid(True)
-        
-        # F1 Score plot
-        if len(self.metrics_history['f1_score']) > 0:
-            axes[2, 0].plot(self.metrics_history['f1_score'], label='Training F1-Score', color='blue')
-            axes[2, 0].plot(self.metrics_history['val_f1_score'], label='Validation F1-Score', color='red')
-            axes[2, 0].set_title('Model F1-Score')
-            axes[2, 0].set_xlabel('Epoch')
-            axes[2, 0].set_ylabel('F1-Score')
-            axes[2, 0].legend()
-            axes[2, 0].grid(True)
-        
-        # AUC Score plot
-        if len(self.metrics_history['auc_score']) > 0:
-            axes[2, 1].plot(self.metrics_history['auc_score'], label='Training AUC', color='blue')
-            axes[2, 1].plot(self.metrics_history['val_auc_score'], label='Validation AUC', color='red')
-            axes[2, 1].set_title('Model AUC Score')
-            axes[2, 1].set_xlabel('Epoch')
-            axes[2, 1].set_ylabel('AUC Score')
-            axes[2, 1].legend()
-            axes[2, 1].grid(True)
+        else:
+            axes[1, 1].text(0.5, 0.5, 'Recall metrics\nnot available\nduring training', 
+                           ha='center', va='center', transform=axes[1, 1].transAxes)
+            axes[1, 1].set_title('Model Recall')
         
         plt.tight_layout()
         plt.savefig(f'{self.log_dir}/training_progress.png', dpi=300, bbox_inches='tight')
