@@ -198,13 +198,12 @@ class EfficientNetTrainer:
         for layer in base_model.layers[:-20]:  # Freeze all but last 20 layers
             layer.trainable = False
         
-        # Enhanced data augmentation for better generalization
+        # Moderate data augmentation for stable training
         data_augmentation = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.2),  # Increased rotation
-            tf.keras.layers.RandomZoom(0.2),      # Increased zoom
-            tf.keras.layers.RandomContrast(0.2),  # Increased contrast
-            tf.keras.layers.RandomBrightness(0.2), # Added brightness
+            tf.keras.layers.RandomRotation(0.1),  # Reduced rotation
+            tf.keras.layers.RandomZoom(0.1),      # Reduced zoom
+            tf.keras.layers.RandomContrast(0.1),  # Reduced contrast
         ])
         
         # Simple preprocessing for EfficientNet
@@ -213,13 +212,15 @@ class EfficientNetTrainer:
             tf.keras.layers.Rescaling(1./255)
         ])
         
-        # Custom classification head (similar to screenshot approach)
+        # Custom classification head with better architecture
         model = tf.keras.Sequential([
             data_augmentation,
             preprocessing,
             base_model,
             GlobalAveragePooling2D(),
-            Dropout(0.4),  # Increased dropout like in screenshot
+            Dropout(0.3),  # Reduced dropout for better training
+            Dense(128, activation='relu'),  # Add intermediate layer
+            Dropout(0.2),
             Dense(2, activation='softmax', name='predictions')
         ])
         
@@ -227,10 +228,10 @@ class EfficientNetTrainer:
         sample_input = tf.keras.Input(shape=(300, 300, 3))
         model.build(sample_input.shape)
         
-        # Compile model with comprehensive metrics
+        # Compile model with better learning rate for stability
         model.compile(
             optimizer=tf.keras.optimizers.Adam(
-                learning_rate=0.001  # Start with moderate LR, will be reduced by callbacks
+                learning_rate=0.0001  # Lower LR for more stable training
             ),
             loss='categorical_crossentropy',
             metrics=['accuracy', 'precision', 'recall']

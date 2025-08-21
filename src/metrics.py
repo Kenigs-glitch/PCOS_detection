@@ -62,9 +62,15 @@ class PCOSMetrics(Callback):
         
         print(f"   Time elapsed: {elapsed_time/60:.1f} minutes")
         
-        # Save metrics to file
-        metrics_df = pd.DataFrame(self.metrics_history)
-        metrics_df.to_csv(f'{self.log_dir}/training_metrics.csv', index=False)
+        # Save metrics to file - only save metrics that have data
+        metrics_to_save = {}
+        for key, values in self.metrics_history.items():
+            if len(values) > 0:
+                metrics_to_save[key] = values
+        
+        if metrics_to_save:
+            metrics_df = pd.DataFrame(metrics_to_save)
+            metrics_df.to_csv(f'{self.log_dir}/training_metrics.csv', index=False)
         
         # Create real-time plot
         self.plot_metrics()
