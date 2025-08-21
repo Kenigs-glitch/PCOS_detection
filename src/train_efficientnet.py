@@ -156,7 +156,8 @@ class EfficientNetTrainer:
         base_model = EfficientNetB3(
             weights='imagenet',
             include_top=False,
-            input_shape=(300, 300, 3)
+            input_shape=(300, 300, 3),
+            include_preprocessing=True
         )
         
         # Freeze base model initially
@@ -197,7 +198,8 @@ class EfficientNetTrainer:
             image_size=(300, 300),
             batch_size=self.config['data']['batch_size'],
             shuffle=True,
-            seed=42
+            seed=42,
+            color_mode='rgb'
         )
         
         # Split into train/validation
