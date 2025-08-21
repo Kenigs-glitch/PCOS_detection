@@ -13,7 +13,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
 from tensorflow.keras.callbacks import Callback
 import pandas as pd
-from src.metrics import PCOSMetrics, calculate_comprehensive_metrics, plot_comprehensive_metrics, generate_metrics_report
+from metrics import PCOSMetrics, calculate_comprehensive_metrics, plot_comprehensive_metrics, generate_metrics_report
 
 # Configure GPU memory growth
 gpus = tf.config.experimental.list_physical_devices('GPU')
