@@ -187,8 +187,6 @@ class EfficientNetTrainer:
         
         # Simple preprocessing for EfficientNet
         preprocessing = tf.keras.Sequential([
-            # Convert grayscale to RGB by repeating the channel 3 times
-            tf.keras.layers.Lambda(lambda x: tf.repeat(x, 3, axis=-1)),
             # Simple normalization since we're not using pre-trained weights
             tf.keras.layers.Rescaling(1./255)
         ])
@@ -253,8 +251,7 @@ class EfficientNetTrainer:
             color_mode='rgb'
         )
         
-        # Apply preprocessing
-        dataset = dataset.map(lambda x, y: (tf.image.rgb_to_grayscale(x), y))
+        # Apply preprocessing - keep RGB
         dataset = dataset.map(lambda x, y: (tf.cast(x, tf.float32) / 255.0, y))
         
         # Split into train/validation
