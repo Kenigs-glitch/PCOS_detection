@@ -169,7 +169,7 @@ class EfficientNetTrainer:
         base_model = EfficientNetB3(
             weights='imagenet',
             include_top=False,
-            input_shape=(300, 300, 3)
+            input_shape=(300, 300, 1)
         )
         
         # Unfreeze last few layers for fine-tuning
@@ -185,9 +185,11 @@ class EfficientNetTrainer:
             tf.keras.layers.RandomContrast(0.1),
         ])
         
-        # Custom preprocessing for EfficientNet
+        # Custom preprocessing for EfficientNet with grayscale
         preprocessing = tf.keras.Sequential([
             tf.keras.layers.Rescaling(1./255),  # Normalize to [0,1]
+            # Convert grayscale to RGB by repeating the channel 3 times
+            tf.keras.layers.Lambda(lambda x: tf.repeat(x, 3, axis=-1)),
             tf.keras.layers.Lambda(lambda x: tf.keras.applications.efficientnet.preprocess_input(x))  # EfficientNet preprocessing
         ])
         
@@ -204,7 +206,7 @@ class EfficientNetTrainer:
         ])
         
         # Build model with sample input
-        sample_input = tf.keras.Input(shape=(300, 300, 3))
+        sample_input = tf.keras.Input(shape=(300, 300, 1))
         model.build(sample_input.shape)
         
         # Compile model with lower learning rate for fine-tuning
@@ -224,7 +226,7 @@ class EfficientNetTrainer:
         """Load and preprocess dataset"""
         print("📥 Loading PCOS dataset...")
         
-        # Load dataset
+        # Load dataset as grayscale (since EfficientNet expects 1 channel)
         dataset = tf.keras.preprocessing.image_dataset_from_directory(
             '/app/data/raw/data/train',
             labels='inferred',
@@ -233,7 +235,7 @@ class EfficientNetTrainer:
             batch_size=self.config['data']['batch_size'],
             shuffle=True,
             seed=42,
-            color_mode='rgb'
+            color_mode='grayscale'
         )
         
         # Split into train/validation
