@@ -114,16 +114,36 @@ class GradCAM:
         # Find the last convolutional layer if not specified
         if layer_name is None:
             for layer in reversed(model.layers):
-                if len(layer.output_shape) == 4:
+                if hasattr(layer, 'output_shape') and len(layer.output_shape) == 4:
                     self.layer_name = layer.name
                     break
+            # If no conv layer found, use the EfficientNet base model's last conv layer
+            if self.layer_name is None:
+                for layer in model.layers:
+                    if 'efficientnetb3' in layer.name.lower():
+                        # Find the last conv layer in the base model
+                        for base_layer in reversed(layer.layers):
+                            if hasattr(base_layer, 'output_shape') and len(base_layer.output_shape) == 4:
+                                self.layer_name = f"{layer.name}/{base_layer.name}"
+                                break
+                        break
     
     def generate_cam(self, image, class_index=None):
         """Generate Grad-CAM for a given image"""
+        # Handle nested layer names (e.g., "efficientnetb3/block7a_project_conv")
+        if '/' in self.layer_name:
+            # For nested layers, we need to access them differently
+            base_name, layer_name = self.layer_name.split('/', 1)
+            base_layer = self.model.get_layer(base_name)
+            target_layer = base_layer.get_layer(layer_name)
+            conv_output = target_layer.output
+        else:
+            conv_output = self.model.get_layer(self.layer_name).output
+            
         # Create a model that outputs the last conv layer and predictions
         grad_model = Model(
             inputs=[self.model.inputs],
-            outputs=[self.model.get_layer(self.layer_name).output, self.model.output]
+            outputs=[conv_output, self.model.output]
         )
         
         # Compute gradients
@@ -177,12 +197,13 @@ class EfficientNetTrainer:
         for layer in base_model.layers[:-20]:  # Freeze all but last 20 layers
             layer.trainable = False
         
-        # Data augmentation for training
+        # Enhanced data augmentation for better generalization
         data_augmentation = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.1),
-            tf.keras.layers.RandomZoom(0.1),
-            tf.keras.layers.RandomContrast(0.1),
+            tf.keras.layers.RandomRotation(0.2),  # Increased rotation
+            tf.keras.layers.RandomZoom(0.2),      # Increased zoom
+            tf.keras.layers.RandomContrast(0.2),  # Increased contrast
+            tf.keras.layers.RandomBrightness(0.2), # Added brightness
         ])
         
         # Simple preprocessing for EfficientNet
@@ -191,15 +212,13 @@ class EfficientNetTrainer:
             tf.keras.layers.Rescaling(1./255)
         ])
         
-        # Custom classification head
+        # Custom classification head (similar to screenshot approach)
         model = tf.keras.Sequential([
             data_augmentation,
             preprocessing,
             base_model,
             GlobalAveragePooling2D(),
-            Dropout(0.3),
-            Dense(128, activation='relu'),
-            Dropout(0.2),
+            Dropout(0.4),  # Increased dropout like in screenshot
             Dense(2, activation='softmax', name='predictions')
         ])
         
@@ -207,13 +226,13 @@ class EfficientNetTrainer:
         sample_input = tf.keras.Input(shape=(300, 300, 3))
         model.build(sample_input.shape)
         
-        # Compile model with lower learning rate for fine-tuning
+        # Compile model with better learning rate strategy
         model.compile(
             optimizer=tf.keras.optimizers.Adam(
-                learning_rate=1e-4  # Much lower LR for fine-tuning
+                learning_rate=0.001  # Start with moderate LR, will be reduced by callbacks
             ),
             loss='categorical_crossentropy',
-            metrics=['accuracy', 'precision', 'recall']
+            metrics=['accuracy']
         )
         
         print(f"✅ Model created with {model.count_params():,} parameters")
@@ -274,23 +293,27 @@ class EfficientNetTrainer:
         self.create_model()
         train_ds, val_ds = self.load_data()
         
-        # Setup callbacks
+        # Setup improved callbacks for better training
         callbacks = [
             MetricsMonitor(),
             tf.keras.callbacks.EarlyStopping(
-                patience=self.config['training']['patience'],
+                patience=10,  # Increased patience
                 restore_best_weights=True,
-                verbose=1
+                verbose=1,
+                monitor='val_accuracy'  # Monitor accuracy instead of loss
             ),
             tf.keras.callbacks.ModelCheckpoint(
                 '/app/models/efficientnet_b3/best_model.h5',
                 save_best_only=True,
-                verbose=1
+                verbose=1,
+                monitor='val_accuracy'
             ),
             tf.keras.callbacks.ReduceLROnPlateau(
-                patience=5,
-                factor=0.5,
-                verbose=1
+                patience=3,  # More aggressive LR reduction
+                factor=0.2,  # Reduce LR more aggressively
+                min_lr=1e-6,  # Set minimum LR
+                verbose=1,
+                monitor='val_accuracy'
             )
         ]
         
@@ -306,11 +329,11 @@ class EfficientNetTrainer:
         
         print(f"📊 Class weights: {class_weight}")
         
-        # Train model
+        # Train model with improved strategy
         self.history = self.model.fit(
             train_ds,
             validation_data=val_ds,
-            epochs=self.config['models']['efficientnet_b3']['epochs'],
+            epochs=50,  # Increased epochs
             callbacks=callbacks,
             class_weight=class_weight,
             verbose=1
