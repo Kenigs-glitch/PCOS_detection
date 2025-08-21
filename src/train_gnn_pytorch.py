@@ -771,71 +771,100 @@ class GNNTrainer:
     
     def _generate_single_grad_cam(self, graph, pred_label, true_label, prediction_probs, sample_idx):
         """Generate Grad-CAM for a single graph"""
-        # For GNNs, we'll create a heatmap based on node importance
-        graph = graph.to(device)
-        graph.requires_grad_(True)
-        
-        # Forward pass
-        output = self.model(graph)
-        
-        # Get gradients with respect to node features
-        output[0, pred_label].backward()
-        
-        # Get gradients of the last layer with respect to node features
-        gradients = graph.x.grad
-        
-        # Calculate node importance (similar to Grad-CAM)
-        if gradients is not None:
-            # Average gradients across feature dimensions
-            node_importance = torch.mean(torch.abs(gradients), dim=1)
+        try:
+            # For GNNs, we'll create a heatmap based on node importance
+            graph = graph.to(device)
+            graph.requires_grad_(True)
             
-            # Normalize importance scores
-            node_importance = (node_importance - node_importance.min()) / (node_importance.max() - node_importance.min() + 1e-8)
+            # Ensure edge_index is within bounds
+            if graph.edge_index.size(1) > 0:
+                max_node_idx = graph.x.size(0) - 1
+                edge_index = graph.edge_index.clone()
+                edge_index[0] = torch.clamp(edge_index[0], 0, max_node_idx)
+                edge_index[1] = torch.clamp(edge_index[1], 0, max_node_idx)
+                graph.edge_index = edge_index
             
-            # Create a 224x224 heatmap
-            heatmap = np.zeros((224, 224))
+            # Forward pass
+            output = self.model(graph)
             
-            if hasattr(graph, 'pos') and graph.pos is not None:
-                # Use actual node positions
-                pos = graph.pos.cpu().numpy()
-                for j, (x, y) in enumerate(pos):
-                    x_coord = int(x * 224)
-                    y_coord = int(y * 224)
-                    if 0 <= x_coord < 224 and 0 <= y_coord < 224:
-                        heatmap[y_coord, x_coord] = node_importance[j].item()
-            else:
-                # Use node indices as positions (fallback)
-                for j in range(len(node_importance)):
-                    x_coord = int((j % 224) * 224 / len(node_importance))
-                    y_coord = int((j // 224) * 224 / len(node_importance))
-                    if 0 <= x_coord < 224 and 0 <= y_coord < 224:
-                        heatmap[y_coord, x_coord] = node_importance[j].item()
+            # Get gradients with respect to node features
+            output[0, pred_label].backward()
             
-            # Apply Gaussian blur for smoother visualization
-            heatmap = cv2.GaussianBlur(heatmap, (15, 15), 0)
+            # Get gradients of the last layer with respect to node features
+            gradients = graph.x.grad
             
-            # Create visualization
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+            # Calculate node importance (similar to Grad-CAM)
+            if gradients is not None:
+                # Average gradients across feature dimensions
+                node_importance = torch.mean(torch.abs(gradients), dim=1)
+                
+                # Normalize importance scores
+                node_importance = (node_importance - node_importance.min()) / (node_importance.max() - node_importance.min() + 1e-8)
+                
+                # Create a 224x224 heatmap
+                heatmap = np.zeros((224, 224))
+                
+                if hasattr(graph, 'pos') and graph.pos is not None:
+                    # Use actual node positions
+                    pos = graph.pos.cpu().numpy()
+                    for j, (x, y) in enumerate(pos):
+                        x_coord = int(x * 224)
+                        y_coord = int(y * 224)
+                        if 0 <= x_coord < 224 and 0 <= y_coord < 224:
+                            heatmap[y_coord, x_coord] = node_importance[j].item()
+                else:
+                    # Use node indices as positions (fallback)
+                    for j in range(len(node_importance)):
+                        x_coord = int((j % 224) * 224 / len(node_importance))
+                        y_coord = int((j // 224) * 224 / len(node_importance))
+                        if 0 <= x_coord < 224 and 0 <= y_coord < 224:
+                            heatmap[y_coord, x_coord] = node_importance[j].item()
+                
+                # Apply Gaussian blur for smoother visualization
+                heatmap = cv2.GaussianBlur(heatmap, (15, 15), 0)
+                
+                # Create visualization
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+                
+                # Original graph visualization
+                if hasattr(graph, 'pos') and graph.pos is not None:
+                    ax1.scatter(graph.pos[:, 0].cpu().numpy() * 224, graph.pos[:, 1].cpu().numpy() * 224, 
+                               c=node_importance.cpu().numpy(), cmap='hot', s=50, alpha=0.7)
+                else:
+                    # Fallback visualization
+                    ax1.scatter(range(len(node_importance)), range(len(node_importance)), 
+                               c=node_importance.cpu().numpy(), cmap='hot', s=50, alpha=0.7)
+                
+                ax1.set_title(f'Graph Nodes with Importance\nPred: {pred_label.item()}, True: {true_label.item()}')
+                ax1.set_xlim(0, 224)
+                ax1.set_ylim(0, 224)
+                ax1.invert_yaxis()
+                
+                # Heatmap visualization
+                im = ax2.imshow(heatmap, cmap='hot', alpha=0.8)
+                ax2.set_title(f'Grad-CAM Heatmap\nConfidence: {prediction_probs[pred_label].item():.3f}')
+                ax2.axis('off')
+                
+                # Add colorbar
+                plt.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
+                
+                # Save the visualization
+                status = "correct" if pred_label == true_label else "incorrect"
+                plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}.png', 
+                           dpi=300, bbox_inches='tight')
+                plt.close()
+                
+        except Exception as e:
+            print(f"⚠️ Grad-CAM generation failed for sample {sample_idx}: {e}")
+            # Create a simple fallback visualization
+            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+            ax.text(0.5, 0.5, f'Grad-CAM Failed\nPred: {pred_label.item()}, True: {true_label.item()}\nError: {str(e)}', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
+            ax.set_title(f'Grad-CAM Sample {sample_idx} (Failed)')
+            ax.axis('off')
             
-            # Original graph visualization
-            ax1.scatter(graph.pos[:, 0].cpu().numpy() * 224, graph.pos[:, 1].cpu().numpy() * 224, 
-                       c=node_importance.cpu().numpy(), cmap='hot', s=50, alpha=0.7)
-            ax1.set_title(f'Graph Nodes with Importance\nPred: {pred_label.item()}, True: {true_label.item()}')
-            ax1.set_xlim(0, 224)
-            ax1.set_ylim(0, 224)
-            ax1.invert_yaxis()
-            
-            # Heatmap visualization
-            im = ax2.imshow(heatmap, cmap='hot', alpha=0.8)
-            ax2.set_title(f'Grad-CAM Heatmap\nConfidence: {prediction_probs[pred_label].item():.3f}')
-            ax2.axis('off')
-            
-            # Add colorbar
-            plt.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
-            
-            # Save the visualization
             status = "correct" if pred_label == true_label else "incorrect"
-            plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}.png', 
+            plt.savefig(f'/app/results/plots/grad_cams/grad_cam_sample_{sample_idx}_{status}_failed.png', 
                        dpi=300, bbox_inches='tight')
             plt.close()
     
