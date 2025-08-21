@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.4-devel-ubuntu22.04
 
 # Basic dependencies
 RUN apt-get update && apt-get install -y \
