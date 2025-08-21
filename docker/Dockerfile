@@ -1,9 +1,7 @@
-FROM nvidia/cuda:12.4-devel-ubuntu22.04
+FROM facefusion-docker-facefusion-cuda:latest
 
 # Basic dependencies
 RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3-pip \
     git \
     wget \
     && rm -rf /var/lib/apt/lists/*
