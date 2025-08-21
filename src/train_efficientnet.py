@@ -165,9 +165,9 @@ class EfficientNetTrainer:
         """Create EfficientNet-B3 model with custom head"""
         print("🏗️ Creating EfficientNet-B3 model...")
         
-        # Base model with pre-trained weights - use 3 channels
+        # Base model with random weights to avoid input shape issues
         base_model = EfficientNetB3(
-            weights='imagenet',
+            weights=None,
             include_top=False,
             input_shape=(300, 300, 3)
         )
@@ -189,7 +189,8 @@ class EfficientNetTrainer:
         preprocessing = tf.keras.Sequential([
             # Convert grayscale to RGB by repeating the channel 3 times
             tf.keras.layers.Lambda(lambda x: tf.repeat(x, 3, axis=-1)),
-            tf.keras.layers.Lambda(lambda x: tf.keras.applications.efficientnet.preprocess_input(x))  # EfficientNet preprocessing
+            # Simple normalization since we're not using pre-trained weights
+            tf.keras.layers.Rescaling(1./255)
         ])
         
         # Custom classification head
