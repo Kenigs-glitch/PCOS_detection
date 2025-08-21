@@ -1198,7 +1198,9 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
         if hasattr(data, 'original_keypoints'):
             print(f"🔍 Coordinate mapping verification:")
             for i in range(min(3, len(graph_pos), len(data.original_keypoints))):
-                orig_x, orig_y = data.original_keypoints[i]
+                # data.original_keypoints[i] is a numpy array, need to access individual elements
+                orig_x = data.original_keypoints[i][0]
+                orig_y = data.original_keypoints[i][1]
                 # graph_pos[i] is a tensor, need to access individual elements
                 norm_x = graph_pos[i][0].item()
                 norm_y = graph_pos[i][1].item()
