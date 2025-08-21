@@ -156,8 +156,7 @@ class EfficientNetTrainer:
         base_model = EfficientNetB3(
             weights='imagenet',
             include_top=False,
-            input_shape=(300, 300, 3),
-            include_preprocessing=True
+            input_shape=(300, 300, 3)
         )
         
         # Freeze base model initially
@@ -165,6 +164,7 @@ class EfficientNetTrainer:
         
         # Custom classification head
         model = tf.keras.Sequential([
+            tf.keras.layers.Rescaling(1./255),  # Normalize pixel values
             base_model,
             GlobalAveragePooling2D(),
             Dropout(0.3),
