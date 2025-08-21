@@ -13,6 +13,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
 from tensorflow.keras.callbacks import Callback
 import pandas as pd
+from src.metrics import PCOSMetrics, calculate_comprehensive_metrics, plot_comprehensive_metrics, generate_metrics_report
 
 # Configure GPU memory growth
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -34,8 +35,8 @@ class MetricsMonitor(Callback):
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
         self.metrics_history = {
-            'loss': [], 'accuracy': [], 'precision': [], 'recall': [],
-            'val_loss': [], 'val_accuracy': [], 'val_precision': [], 'val_recall': []
+            'loss': [], 'accuracy': [],
+            'val_loss': [], 'val_accuracy': []
         }
         self.start_time = time.time()
         
@@ -226,13 +227,13 @@ class EfficientNetTrainer:
         sample_input = tf.keras.Input(shape=(300, 300, 3))
         model.build(sample_input.shape)
         
-        # Compile model with better learning rate strategy
+        # Compile model with comprehensive metrics
         model.compile(
             optimizer=tf.keras.optimizers.Adam(
                 learning_rate=0.001  # Start with moderate LR, will be reduced by callbacks
             ),
             loss='categorical_crossentropy',
-            metrics=['accuracy']
+            metrics=['accuracy', 'precision', 'recall']
         )
         
         print(f"✅ Model created with {model.count_params():,} parameters")
@@ -293,9 +294,9 @@ class EfficientNetTrainer:
         self.create_model()
         train_ds, val_ds = self.load_data()
         
-        # Setup improved callbacks for better training
+        # Setup improved callbacks with comprehensive metrics
         callbacks = [
-            MetricsMonitor(),
+            PCOSMetrics(),
             tf.keras.callbacks.EarlyStopping(
                 patience=10,  # Increased patience
                 restore_best_weights=True,
@@ -360,10 +361,23 @@ class EfficientNetTrainer:
         self.test_labels = np.array(self.test_labels)
         pred_classes = np.argmax(self.test_predictions, axis=1)
         
-        # Calculate metrics
-        accuracy = np.mean(pred_classes == self.test_labels)
+        # Calculate comprehensive metrics
+        print("🔍 Calculating comprehensive metrics...")
+        metrics = calculate_comprehensive_metrics(
+            self.test_labels, 
+            pred_classes, 
+            self.test_predictions,
+            class_names=['Normal', 'PCOS']
+        )
         
-        print(f"📈 Model Accuracy: {accuracy:.4f}")
+        print(f"📈 Model Performance Summary:")
+        print(f"   Accuracy: {metrics['accuracy']:.4f}")
+        print(f"   Precision: {metrics['precision']:.4f}")
+        print(f"   Recall: {metrics['recall']:.4f}")
+        print(f"   F1-Score: {metrics['f1_score']:.4f}")
+        print(f"   AUC Score: {metrics['auc_score']:.4f}")
+        print(f"   Sensitivity: {metrics['sensitivity']:.4f}")
+        print(f"   Specificity: {metrics['specificity']:.4f}")
         
         # Generate comprehensive analytics
         self.generate_confusion_matrix(pred_classes)
@@ -371,7 +385,11 @@ class EfficientNetTrainer:
         self.analyze_failures(pred_classes)
         self.generate_grad_cams(test_ds)
         
-        return accuracy
+        # Generate comprehensive metrics visualization and report
+        plot_comprehensive_metrics(metrics, '/app/results/plots/')
+        generate_metrics_report(metrics, '/app/results/')
+        
+        return metrics['accuracy']
     
     def generate_confusion_matrix(self, pred_classes):
         """Generate and save confusion matrix"""
