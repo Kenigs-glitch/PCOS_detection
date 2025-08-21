@@ -245,6 +245,9 @@ class GraphDataProcessor:
         # Add positional information (optional)
         data.pos = torch.tensor(keypoints, dtype=torch.float) / 224.0
         
+        # Store original keypoints for verification
+        data.original_keypoints = keypoints.copy()
+        
         # Store original image path for visualization
         data.image_path = image_path
         
@@ -1190,16 +1193,26 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
         
         # Add keypoints as red filled circles (highlighting features)
         print(f"🔍 Adding {len(graph_pos)} keypoints to image")
+        
+        # Verify coordinate mapping by comparing with original keypoints
+        if hasattr(data, 'original_keypoints'):
+            print(f"🔍 Coordinate mapping verification:")
+            for i in range(min(3, len(graph_pos), len(data.original_keypoints))):
+                orig_x, orig_y = data.original_keypoints[i]
+                norm_x, norm_y = graph_pos[i][0].item(), graph_pos[i][1].item()
+                mapped_x = int(norm_x * img_size)
+                mapped_y = int(norm_y * img_size)
+                print(f"   Point {i}: original=({orig_x}, {orig_y}) -> normalized=({norm_x:.3f}, {norm_y:.3f}) -> mapped=({mapped_x}, {mapped_y})")
+        
         for i, pos in enumerate(graph_pos):
             # Convert normalized coordinates (0-1) to image coordinates
+            # Note: pos[0] = x, pos[1] = y (normalized)
             x = int(pos[0] * img_size)
             y = int(pos[1] * img_size)
             if 0 <= x < img_size and 0 <= y < img_size:
                 # Add red filled circle to highlight feature
                 # Use BGR format for OpenCV: (0, 0, 255) = red
                 cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
-                if i < 3:  # Print first 3 coordinates for debugging
-                    print(f"   Point {i}: normalized=({pos[0]:.3f}, {pos[1]:.3f}) -> image=({x}, {y})")
         
         ax1.imshow(ultrasound_img)
         ax1.set_title('Ultrasound Image\n(Key Features Highlighted)', fontsize=14, fontweight='bold')
