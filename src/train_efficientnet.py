@@ -152,18 +152,29 @@ class EfficientNetTrainer:
         """Create EfficientNet-B3 model with custom head"""
         print("🏗️ Creating EfficientNet-B3 model...")
         
-        # Base model - try without weights first
+        # Base model with pre-trained weights
         base_model = EfficientNetB3(
-            weights=None,
+            weights='imagenet',
             include_top=False,
             input_shape=(300, 300, 3)
         )
         
-        # Freeze base model initially
-        base_model.trainable = False
+        # Unfreeze last few layers for fine-tuning
+        base_model.trainable = True
+        for layer in base_model.layers[:-20]:  # Freeze all but last 20 layers
+            layer.trainable = False
+        
+        # Data augmentation for training
+        data_augmentation = tf.keras.Sequential([
+            tf.keras.layers.RandomFlip("horizontal"),
+            tf.keras.layers.RandomRotation(0.1),
+            tf.keras.layers.RandomZoom(0.1),
+            tf.keras.layers.RandomContrast(0.1),
+        ])
         
         # Custom classification head
         model = tf.keras.Sequential([
+            data_augmentation,
             tf.keras.layers.Rescaling(1./255),  # Normalize pixel values
             base_model,
             GlobalAveragePooling2D(),
@@ -177,10 +188,10 @@ class EfficientNetTrainer:
         sample_input = tf.keras.Input(shape=(300, 300, 3))
         model.build(sample_input.shape)
         
-        # Compile model
+        # Compile model with lower learning rate for fine-tuning
         model.compile(
             optimizer=tf.keras.optimizers.Adam(
-                learning_rate=self.config['models']['efficientnet_b3']['learning_rate']
+                learning_rate=1e-4  # Much lower LR for fine-tuning
             ),
             loss='categorical_crossentropy',
             metrics=['accuracy', 'precision', 'recall']
@@ -246,12 +257,25 @@ class EfficientNetTrainer:
             )
         ]
         
+        # Calculate class weights for imbalanced data
+        total_samples = 1924  # From our analysis
+        class_0_samples = 781  # infected
+        class_1_samples = 1143  # notinfected
+        
+        class_weight = {
+            0: total_samples / (2 * class_0_samples),  # infected
+            1: total_samples / (2 * class_1_samples)   # notinfected
+        }
+        
+        print(f"📊 Class weights: {class_weight}")
+        
         # Train model
         self.history = self.model.fit(
             train_ds,
             validation_data=val_ds,
             epochs=self.config['models']['efficientnet_b3']['epochs'],
             callbacks=callbacks,
+            class_weight=class_weight,
             verbose=1
         )
         
