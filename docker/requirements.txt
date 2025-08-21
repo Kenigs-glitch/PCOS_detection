@@ -1,7 +1,7 @@
 # Core Deep Learning Frameworks
 tensorflow[and-cuda]==2.20.0
-torch==2.2.0
-torchvision==0.17.0
+torch>=2.4.0
+torchvision>=0.19.0
 
 # Machine Learning and Data Science
 scikit-learn==1.7.1
