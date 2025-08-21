@@ -1185,13 +1185,18 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
                     noise = np.random.normal(0.3, 0.1)
                     ultrasound_img[y, x] = [noise, noise, noise]
         
-        # Add keypoints as red circles with thin lines (highlighting features)
-        for pos in graph_pos:
-            x, y = int(pos[0] * img_size), int(pos[1] * img_size)
+        # Add keypoints as red filled circles (highlighting features)
+        print(f"🔍 Adding {len(graph_pos)} keypoints to image")
+        for i, pos in enumerate(graph_pos):
+            # Convert normalized coordinates (0-1) to image coordinates
+            x = int(pos[0] * img_size)
+            y = int(pos[1] * img_size)
             if 0 <= x < img_size and 0 <= y < img_size:
-                # Add red circle with thin line to highlight feature
+                # Add red filled circle to highlight feature
                 # Use BGR format for OpenCV: (0, 0, 255) = red
-                cv2.circle(ultrasound_img, (x, y), 8, (0, 0, 255), 1)  # Red circle, thickness=1
+                cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
+                if i < 3:  # Print first 3 coordinates for debugging
+                    print(f"   Point {i}: normalized=({pos[0]:.3f}, {pos[1]:.3f}) -> image=({x}, {y})")
         
         ax1.imshow(ultrasound_img)
         ax1.set_title('Ultrasound Image\n(Key Features Highlighted)', fontsize=14, fontweight='bold')
@@ -1298,12 +1303,14 @@ def create_summary_visualization(save_dir, data_loader=None):
                                 noise = np.random.normal(0.3, 0.1)
                                 ultrasound_img[y, x] = [noise, noise, noise]
                     
-                    # Add real keypoints as red circles
+                    # Add real keypoints as red filled circles
                     for pos in data.pos[:20]:  # Use first 20 points
-                        x, y = int(pos[0] * img_size), int(pos[1] * img_size)
+                        # Convert normalized coordinates (0-1) to image coordinates
+                        x = int(pos[0] * img_size)
+                        y = int(pos[1] * img_size)
                         if 0 <= x < img_size and 0 <= y < img_size:
                             # Use BGR format for OpenCV: (0, 0, 255) = red
-                            cv2.circle(ultrasound_img, (x, y), 4, (0, 0, 255), 1)
+                            cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
                     break
                 else:
                     # Fallback to simulated image
@@ -1315,7 +1322,7 @@ def create_summary_visualization(save_dir, data_loader=None):
                     for _ in range(10):
                         x, y = np.random.randint(0, img_size, 2)
                         # Use BGR format for OpenCV: (0, 0, 255) = red
-                        cv2.circle(ultrasound_img, (x, y), 4, (0, 0, 255), 1)
+                        cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
         except:
             # Fallback to simulated image
             ultrasound_img = np.zeros((img_size, img_size, 3))
@@ -1326,7 +1333,7 @@ def create_summary_visualization(save_dir, data_loader=None):
             for _ in range(10):
                 x, y = np.random.randint(0, img_size, 2)
                 # Use BGR format for OpenCV: (0, 0, 255) = red
-                cv2.circle(ultrasound_img, (x, y), 4, (0, 0, 255), 1)
+                cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
     else:
         # Fallback to simulated image
         ultrasound_img = np.zeros((img_size, img_size, 3))
@@ -1337,7 +1344,7 @@ def create_summary_visualization(save_dir, data_loader=None):
         for _ in range(10):
             x, y = np.random.randint(0, img_size, 2)
             # Use BGR format for OpenCV: (0, 0, 255) = red
-            cv2.circle(ultrasound_img, (x, y), 4, (0, 0, 255), 1)
+            cv2.circle(ultrasound_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
     
     ax1.imshow(ultrasound_img)
     ax1.set_title('Step 1: Ultrasound Image Input', fontsize=14, fontweight='bold')
@@ -1345,11 +1352,11 @@ def create_summary_visualization(save_dir, data_loader=None):
     
     # Step 2: Processing - Show feature detection with red circles
     feature_img = ultrasound_img.copy()
-    # Add more red circles to show detected features
+    # Add more red filled circles to show detected features
     for _ in range(15):
         x, y = np.random.randint(0, img_size, 2)
         # Use BGR format for OpenCV: (0, 0, 255) = red
-        cv2.circle(feature_img, (x, y), 4, (0, 0, 255), 1)
+        cv2.circle(feature_img, (x, y), 3, (0, 0, 255), -1)  # Red filled circle, radius=3
     ax2.imshow(feature_img)
     ax2.set_title('Step 2: AI Analyzes Key Features', fontsize=14, fontweight='bold')
     ax2.axis('off')
