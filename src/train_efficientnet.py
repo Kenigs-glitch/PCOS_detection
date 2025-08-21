@@ -185,11 +185,9 @@ class EfficientNetTrainer:
             tf.keras.layers.RandomContrast(0.1),
         ])
         
-        # Custom preprocessing for EfficientNet with grayscale
+        # Simple preprocessing for grayscale EfficientNet
         preprocessing = tf.keras.Sequential([
-            tf.keras.layers.Rescaling(1./255),  # Normalize to [0,1]
-            # Convert grayscale to RGB by repeating the channel 3 times
-            tf.keras.layers.Lambda(lambda x: tf.repeat(x, 3, axis=-1)),
+            # Keep grayscale - no conversion needed
             tf.keras.layers.Lambda(lambda x: tf.keras.applications.efficientnet.preprocess_input(x))  # EfficientNet preprocessing
         ])
         
@@ -226,7 +224,22 @@ class EfficientNetTrainer:
         """Load and preprocess dataset"""
         print("📥 Loading PCOS dataset...")
         
-        # Load dataset as grayscale (since EfficientNet expects 1 channel)
+        # Custom data loading function to convert RGB to grayscale
+        def load_and_preprocess_image(image_path, label):
+            # Read image as RGB
+            image = tf.io.read_file(image_path)
+            image = tf.image.decode_jpeg(image, channels=3)
+            image = tf.image.resize(image, [300, 300])
+            
+            # Convert to grayscale using cv2-like approach
+            image = tf.image.rgb_to_grayscale(image)
+            
+            # Normalize
+            image = tf.cast(image, tf.float32) / 255.0
+            
+            return image, label
+        
+        # Load dataset paths
         dataset = tf.keras.preprocessing.image_dataset_from_directory(
             '/app/data/raw/data/train',
             labels='inferred',
@@ -235,8 +248,12 @@ class EfficientNetTrainer:
             batch_size=self.config['data']['batch_size'],
             shuffle=True,
             seed=42,
-            color_mode='grayscale'
+            color_mode='rgb'
         )
+        
+        # Apply preprocessing
+        dataset = dataset.map(lambda x, y: (tf.image.rgb_to_grayscale(x), y))
+        dataset = dataset.map(lambda x, y: (tf.cast(x, tf.float32) / 255.0, y))
         
         # Split into train/validation
         val_size = int(len(dataset) * self.config['data']['validation_split'])
