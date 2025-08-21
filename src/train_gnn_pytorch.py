@@ -1204,15 +1204,20 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
                 # graph_pos[i] is a tensor, need to access individual elements
                 norm_x = graph_pos[i][0].item()
                 norm_y = graph_pos[i][1].item()
-                mapped_x = int(norm_x * img_size)
-                mapped_y = int(norm_y * img_size)
-                print(f"   Point {i}: original=({orig_x}, {orig_y}) -> normalized=({norm_x:.3f}, {norm_y:.3f}) -> mapped=({mapped_x}, {mapped_y})")
+                # Apply the same coordinate transformation
+                mapped_x = int(norm_y * img_size)  # Use norm_y for x (rotated)
+                mapped_y = int(norm_x * img_size)  # Use norm_x for y (mirrored)
+                print(f"   Point {i}: original=({orig_x}, {orig_y}) -> normalized=({norm_x:.3f}, {norm_y:.3f}) -> mapped=({mapped_x}, {mapped_y}) [corrected]")
         
         for i, pos in enumerate(graph_pos):
             # Convert normalized coordinates (0-1) to image coordinates
-            # Note: pos[0] = x, pos[1] = y (normalized)
-            x = int(pos[0] * img_size)
-            y = int(pos[1] * img_size)
+            # Apply coordinate transformation: rotate 90° clockwise + mirror vertically
+            # Original: pos[0] = x, pos[1] = y (normalized)
+            # After 90° clockwise rotation: x' = y, y' = -x
+            # After vertical mirror: x'' = x', y'' = -y' = x
+            # Final: x = pos[1], y = pos[0]
+            x = int(pos[1] * img_size)  # Use pos[1] for x (rotated)
+            y = int(pos[0] * img_size)  # Use pos[0] for y (mirrored)
             if 0 <= x < img_size and 0 <= y < img_size:
                 # Add red filled circle to highlight feature
                 # Use BGR format for OpenCV: (0, 0, 255) = red
