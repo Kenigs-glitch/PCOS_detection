@@ -1148,7 +1148,7 @@ def create_single_detection_visualization(data, graph_idx, pred_class, true_clas
             x, y = int(pos[0] * img_size), int(pos[1] * img_size)
             if 0 <= x < img_size and 0 <= y < img_size:
                 # Add red circle with thin line to highlight feature
-                cv2.circle(ultrasound_img, (x, y), 8, (1, 0, 0), 2)  # Red circle, thickness=2
+                cv2.circle(ultrasound_img, (x, y), 8, (1, 0, 0), 1)  # Red circle, thickness=1
         
         ax1.imshow(ultrasound_img)
         ax1.set_title('Ultrasound Image\n(Key Features Highlighted)', fontsize=14, fontweight='bold')
@@ -1233,11 +1233,11 @@ def create_summary_visualization(save_dir, data_loader=None):
                             noise = np.random.normal(0.3, 0.1)
                             ultrasound_img[y, x] = [noise, noise, noise]
                     
-                    # Add real keypoints as red circles
-                    for pos in data.pos[:20]:  # Use first 20 points
-                        x, y = int(pos[0] * img_size), int(pos[1] * img_size)
-                        if 0 <= x < img_size and 0 <= y < img_size:
-                            cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 2)
+                                         # Add real keypoints as red circles
+                     for pos in data.pos[:20]:  # Use first 20 points
+                         x, y = int(pos[0] * img_size), int(pos[1] * img_size)
+                         if 0 <= x < img_size and 0 <= y < img_size:
+                             cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
                     break
                 else:
                     # Fallback to simulated image
@@ -1248,7 +1248,7 @@ def create_summary_visualization(save_dir, data_loader=None):
                             ultrasound_img[y, x] = [noise, noise, noise]
                     for _ in range(10):
                         x, y = np.random.randint(0, img_size, 2)
-                        cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 2)
+                        cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
         except:
             # Fallback to simulated image
             ultrasound_img = np.zeros((img_size, img_size, 3))
@@ -1258,7 +1258,7 @@ def create_summary_visualization(save_dir, data_loader=None):
                     ultrasound_img[y, x] = [noise, noise, noise]
             for _ in range(10):
                 x, y = np.random.randint(0, img_size, 2)
-                cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 2)
+                cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
     else:
         # Fallback to simulated image
         ultrasound_img = np.zeros((img_size, img_size, 3))
@@ -1268,7 +1268,7 @@ def create_summary_visualization(save_dir, data_loader=None):
                 ultrasound_img[y, x] = [noise, noise, noise]
         for _ in range(10):
             x, y = np.random.randint(0, img_size, 2)
-            cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 2)
+            cv2.circle(ultrasound_img, (x, y), 4, (1, 0, 0), 1)
     
     ax1.imshow(ultrasound_img)
     ax1.set_title('Step 1: Ultrasound Image Input', fontsize=14, fontweight='bold')
@@ -1279,7 +1279,7 @@ def create_summary_visualization(save_dir, data_loader=None):
     # Add more red circles to show detected features
     for _ in range(15):
         x, y = np.random.randint(0, img_size, 2)
-        cv2.circle(feature_img, (x, y), 4, (1, 0, 0), 2)
+        cv2.circle(feature_img, (x, y), 4, (1, 0, 0), 1)
     ax2.imshow(feature_img)
     ax2.set_title('Step 2: AI Analyzes Key Features', fontsize=14, fontweight='bold')
     ax2.axis('off')
