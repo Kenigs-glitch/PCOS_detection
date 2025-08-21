@@ -51,6 +51,12 @@ results/plots/*
 results/metrics/*
 results/comparison_report.md
 
+# Credentials and sensitive files
+kaggle.json
+*.key
+.env
+secrets/
+
 # Keep directories but ignore contents
 !data/raw/.gitkeep
 !data/processed/.gitkeep
